@@ -4,6 +4,49 @@ const FIREBASE_URL = "https://envirosense-b9386-default-rtdb.asia-southeast1.fir
 const LAST_N = 12; // 🔹 Change this to control how many recent entries are shown
 const REFRESH_INTERVAL = 5000
 
+/////////////////////////////////////////////////////////////////////////
+// ===== Threshold configs =====
+const TEMPERATURE_THRESHOLDS = [
+  { label: 'Higher than Usual', value: 32, color: '#ef4444' },
+  { label: 'Normal Temperature', value: 25, color: '#10b981' },
+  { label: 'Lower than Usual', value: 18, color: '#3b82f6' },
+];
+
+const LIGHT_THRESHOLDS = [
+  { label: 'Outdoor',   value: 10000, color: '#f59e0b' },
+  { label: 'Indoor',    value: 300,   color: '#22c55e' },
+  { label: 'Dark Room', value: 10,    color: '#3b82f6' },
+  { label: 'No light',  value: 0,     color: '#6b7280' },
+];
+
+// ===== Plugin: draw horizontal threshold lines (no labels on chart) =====
+const thresholdLinesPlugin = {
+  id: 'thresholdLines',
+  afterDatasetsDraw(chart, _args, pluginOptions) {
+    const lines = pluginOptions?.lines || [];
+    const { ctx, chartArea, scales } = chart;
+    const y = scales.y;
+    if (!y || !chartArea) return;
+
+    ctx.save();
+    lines.forEach(line => {
+      if (line.value < y.min || line.value > y.max) return; // outside range
+      const yPos = y.getPixelForValue(line.value);
+      ctx.beginPath();
+      ctx.setLineDash(line.dash || [6, 4]);
+      ctx.lineWidth = line.width || 1.25;
+      ctx.strokeStyle = line.color || '#000';
+      ctx.moveTo(chartArea.left, yPos);
+      ctx.lineTo(chartArea.right, yPos);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(thresholdLinesPlugin);
+
+/////////////////////////////////////////////////////////////////////////
 async function fetchData() {
     try {
         const res = await fetch(FIREBASE_URL);
@@ -83,48 +126,77 @@ let tempChart = null;
 let lightChart = null;
 
 function drawChart(canvasId, label, labels, values, color) {
-    const ctx = document.getElementById(canvasId)?.getContext("2d");
-    if (!ctx) return; // canvas not found
+  const ctx = document.getElementById(canvasId)?.getContext("2d");
+  if (!ctx) return;
 
-    // Determine which chart variable to use
-    let chartRef;
-    if (canvasId === "temperature_chart") chartRef = tempChart;
-    if (canvasId === "light_chart") chartRef = lightChart;
+  const isTemp = canvasId === "temperature_chart";
+  const thresholds = isTemp ? TEMPERATURE_THRESHOLDS : LIGHT_THRESHOLDS;
 
-    // Destroy old chart if exists
-    if (chartRef) chartRef.destroy();
+  // Destroy old instance
+  if (isTemp && tempChart) tempChart.destroy();
+  if (!isTemp && lightChart) lightChart.destroy();
 
-    // Create new chart
-    const newChart = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: labels,
-            datasets: [{
-                label: label,
-                data: values,
-                borderColor: color,
-                borderWidth: 2,
-                fill: false,
-                tension: 0.3
-            }]
+  // Main data line
+  const mainDataset = {
+    label,
+    data: values,
+    borderColor: color,
+    borderWidth: 2,
+    fill: false,
+    tension: 0.3,
+    pointRadius: 0,
+    order: 1
+  };
+
+  // Legend-only "dummy" datasets for thresholds
+  const thresholdLegendDatasets = thresholds.map(t => ({
+    label: t.label,
+    data: [NaN],                // ensures nothing is drawn
+    borderColor: t.color,
+    borderWidth: 2,
+    borderDash: t.dash || [6, 4],
+    pointRadius: 0,
+    fill: false,
+    tension: 0,
+    order: 99
+  }));
+
+  const newChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [mainDataset, ...thresholdLegendDatasets]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',           // ⬅️ legend under the chart
+          labels: {
+            // Optional: keep only threshold labels in legend
+            // filter: (item) => ![label].includes(item.text)
+          }
         },
-        options: {
-            responsive: true,
-            animation: false,
-            plugins: {
-                legend: { display: true }
-            },
-            scales: {
-                x: { display: false },
-                y: { beginAtZero: true }
-            }
-        }
-    });
+        // this draws the actual threshold lines
+        thresholdLines: { lines: thresholds }
+      },
+      scales: {
+        x: { display: false },
+        y: isTemp
+          ? { beginAtZero: false, suggestedMin: 10, suggestedMax: 40 }
+          : { beginAtZero: true,  suggestedMin: 0,  suggestedMax: 12000 }
+        // If you often have very small lux but want to show big thresholds too,
+        // consider a log scale instead:
+        // y: { type: 'logarithmic', min: 0.1, max: 100000 }
+      }
+    }
+  });
 
-    // Update the chart reference
-    if (canvasId === "temperature_chart") tempChart = newChart;
-    if (canvasId === "light_chart") lightChart = newChart;
+  if (isTemp) tempChart = newChart; else lightChart = newChart;
 }
+
 
 // Auto refresh every 10 seconds
 fetchData();
