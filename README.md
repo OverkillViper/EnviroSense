@@ -1,2 +1,0 @@
-# EnviroSense
-Sense the Environment
