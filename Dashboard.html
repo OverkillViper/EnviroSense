@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EnviroSense Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cascadia+Code:ital,wght@0,200..700;1,200..700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        .font-cascadia {
+            font-family: "Cascadia Code", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+        }
+        .font-inter {
+            font-family: "Inter", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+        }
+        body {
+            background-color: #f9f9f9;
+        }
+        .recent_table tr td {
+            text-align: center;
+            font-family: "Inter", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+        }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body>
+    <!-- Navigation Bar -->
+    <nav class="bg-white p-6">
+        <div class="font-inter text-3xl font-bold flex">
+            <span class="text-[#252525]">Enviro</span>
+            <span class="text-[#02d15c]">Sense</span>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <div class="w-2/3 mx-auto">
+        <!-- Recent Reports -->
+        <div class="my-6 flex gap-x-8">
+            <div class="flex flex-col p-6 rounded-xl bg-white shadow-sm border border-[#f5f5f5] w-1/3 gap-y-4">
+                <div class="flex gap-x-2">
+                    <span class="material-icons">access_time</span>
+                    <span class="font-inter font-semibold">Last checked</span>
+                </div>
+                <div class="text-xl font-inter font-bold text-center" id="latest_time">
+                </div>
+            </div>
+            <div class="flex flex-col p-6 rounded-xl bg-white shadow-sm border border-[#f5f5f5] w-1/3 gap-y-4">
+                <div class="flex gap-x-2">
+                    <span class="material-icons">device_thermostat</span>
+                    <span class="font-inter font-semibold">Latest Temperature</span>
+                </div>
+                <div class="text-xl font-inter font-bold text-center" id="latest_temperature">
+                </div>
+            </div>
+            <div class="flex flex-col p-6 rounded-xl bg-white shadow-sm border border-[#f5f5f5] w-1/3 gap-y-4">
+                <div class="flex gap-x-2">
+                    <span class="material-icons">light_mode</span>
+                    <span class="font-inter font-semibold">Latest Light</span>
+                </div>
+                <div class="text-xl font-inter font-bold text-center" id="latest_light">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-x-6">
+            <div class="my-8 w-full">
+                <h2 class="font-inter text-xl font-semibold mb-4 text-center">Temperature Trend (Last minute)</h2>
+                <canvas id="temperature_chart" class="w-full h-64"></canvas>
+            </div>
+
+            <!-- Light Chart -->
+            <div class="my-8 w-full">
+                <h2 class="font-inter text-xl font-semibold mb-4 text-center">Light Trend (Last minute)</h2>
+                <canvas id="light_chart" class="w-full h-64"></canvas>
+            </div>
+        </div>
+        
+        <!-- Last 12 Records -->
+        <div class="flex gap-x-6">
+            <!-- Last 12 Temperature Records -->
+            <div class="my-8 w-1/2">
+                <h2 class="font-inter text-xl font-semibold mb-4 text-center">Recent Temperature Readings</h2>
+                <table class="min-w-full bg-white rounded-lg shadow overflow-hidden recent_table">
+                    <thead class="bg-[#3a3b3a] text-[#ffffff]">
+                        <tr>
+                            <th class="py-2 px-4 font-semibold">Timestamp</th>
+                            <th class="py-2 px-4 font-semibold">Temperature (°C)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="temperature_table" class="text-gray-700"></tbody>
+                </table>
+            </div>
+
+            <!-- Last 12 Light Records -->
+            <div class="my-8 w-1/2">
+                <h2 class="font-inter text-xl font-semibold mb-4 text-center">Recent Light Readings</h2>
+                <table class="min-w-full bg-white rounded-lg shadow overflow-hidden recent_table">
+                    <thead class="bg-[#3a3b3a] text-[#ffffff]">
+                        <tr>
+                            <th class="py-2 px-4 font-semibold">Timestamp</th>
+                            <th class="py-2 px-4 font-semibold">Light (lux)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="light_table" class="text-gray-700"></tbody>
+                </table>
+            </div>
+        </div>
+        
+ 
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Import Firebase setup -->
+    <script src="firebase.js"></script>
+</body>
+    
+</html>
