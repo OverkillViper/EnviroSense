@@ -13,7 +13,7 @@ const TEMPERATURE_THRESHOLDS = [
 ];
 
 const LIGHT_THRESHOLDS = [
-  { label: 'Outdoor',   value: 10000, color: '#f59e0b' },
+  { label: 'Outdoor',   value: 1000, color: '#f59e0b' },
   { label: 'Indoor',    value: 300,   color: '#22c55e' },
   { label: 'Dark Room', value: 10,    color: '#3b82f6' },
   { label: 'No light',  value: 0,     color: '#6b7280' },
