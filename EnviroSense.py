@@ -11,21 +11,31 @@ import sys                          # Used to take input from user
 import onewire                      # Communication protocol for 1-wire device
 import ds18x20                      # Used to read DS18B20 temperature sensor
 import cryptolib                    # Used for AES-128 decryption
+import neopixel                     # Used for indicating LED alerts
+import os                           # Used for file management for local buffering
+import json                         # Used for JSON file management
 
 #====================================================================
 # Constants definition
 #====================================================================
 TEMPERATURE_SENSOR_PIN  = 3         # DS18B20 connected at GPIO9
 LIGHT_SENSOR_PIN        = 8         # TEMT6000 connected at GPIO10
+ALERT_LED_PIN           = 48        # Builtin RGB LED Pin at GPIO48
 TIMEZONE_OFFSET         = 6 * 3600  # Timezone offset for BD. GMT+6
 WIFI_CONNECTION_TIMEOUT = 10        # Seconds to wait for Wi-Fi to connect
 ADC_MAX_VALUE           = 4096      # Maximum value possibler for 12-bit ADC
 ADC_REF_VOLTAGE         = 3.3       # Reference voltage for ADC
 PARAM_CHK_INTERVAL      = 5         # Interval between checking temperature
                                     # and light in seconds.
+EPOCH_CONVERSION_FACTOR = 946684800 # Adjustment for 1970 -> 2000 EPOCH
 ENCRYPTED_FIREBASE_KEY  = b's\xd0\x85\xd5\x95\xef\xe0\xee\xe25m`\x91\x89S3|\x02\xb8\x08\xda(\x0c\x04]2C\xbd\xcf\xef\xb3v\xac\x990\xd9\x8a-\x85\xf6\xc7\xa3\xd8ex\n\x05\x1b'
                                     # Encrypted firebase key with AES-128 encryption
 AES_INIT_VECTOR         = b'TheEnviroSenseIV' # AES-128 Initialization Vector
+TEMPERATURE_L_LIMIT     = 28.00     # Lower limit for anomaly temperature. In °C
+TEMPERATURE_U_LIMIT     = 35.00     # Upper limit for anomaly temperature  In °C
+LIGHT_L_LIMIT           = 0.00      # Lower limit for anomaly light. In lux
+LIGHT_U_LIMIT           = 200.00    # Upper limit for anomaly light. In lux
+LOCAL_BUFFER_FILE       = "buffer.json" # Local storage file for data buffering
 
 #====================================================================
 # Method definition
@@ -54,11 +64,17 @@ def init_light_sensor():
     
     return adc
 
+def init_alert_led():
+    alert_led    = machine.Pin(ALERT_LED_PIN, machine.Pin.OUT)
+    neopixel_obj = neopixel.NeoPixel(alert_led, 1)
+    
+    return neopixel_obj
+
 def connect_wifi():
     SSID     = input("          Enter Wi-Fi SSID    : ")
     PASSWORD = input("          Enter WiFi Password : ")
     
-    print("[INFO]    Attempting to connect to Wi-Fi")
+    print("[INFO]    Attempting to connect to Wi-Fi", end="")
     wlan = network.WLAN(network.STA_IF)                 # Set Wi-Fi module in station mode
     wlan.active(True)                                   # Power up the Wi-Fi module
     wlan.disconnect()                                   # Disconnect first to ensure clean start
@@ -75,9 +91,13 @@ def connect_wifi():
         time.sleep(1)
     
     # Print the IP number on successful connection
-    print("[SUCCESS] WiFi connected:", wlan.ifconfig())
+    print("\n[SUCCESS] WiFi connected successfully:", wlan.ifconfig())
     
     return True
+
+def wifi_connected():
+    wlan = network.WLAN(network.STA_IF)
+    return wlan.isconnected()
 
 def sync_time():
     try:
@@ -87,16 +107,15 @@ def sync_time():
         print("[ERROR]   NTP syncronization failed:", e)
 
 def get_timestamp():
-    current_time = time.time() + TIMEZONE_OFFSET            # Add GMT+6 offset with NTP time
-    
-    return int(current_time)                                # Return current time as integer
+    current_time = time.localtime(time.time())
+
+    return int(time.mktime(current_time) + EPOCH_CONVERSION_FACTOR) # Return current time as integer
 
 def get_temperature(sensor, roms):
-    sensor.convert_temp()                                   # Instruct the DS18B20 sensor to
-                                                            # start temperature conversion
+    sensor.convert_temp()                    # Instruct the DS18B20 sensor to start temperature conversion
     
-    time.sleep_ms(750)                                      # Wait 750ms to let the sensor
-                                                            # convert the temperature
+    time.sleep_ms(750)                       # Wait 750ms to let the sensor
+                                             # convert the temperature
     temperature = sensor.read_temp(roms[0])
     
     return temperature
@@ -141,7 +160,64 @@ def upload_data_to_firebase(data, key):
         print("[INFO]    Response from firebase    :", response.text)
         response.close()
     except Exception as e:
-        print("[ERROR]   Error uploading data to firebase:", e)
+        print("[ERROR]   Failed to upload data to firebase:", e)
+        save_to_buffer(data)
+        print("[INFO]    Data saved locally and will try to re-upload later")
+
+def set_alert(led, alert_value):
+    led[0] = [255 * alert_value, 0, 0]
+    led.write()
+
+def check_anomaly(temperature, light):
+    temperature_alert = 0
+    light_alert = 0
+    
+    # temperature alert will be HIGH if temperature is out of normal range
+    temperature_alert = temperature < TEMPERATURE_L_LIMIT or temperature > TEMPERATURE_U_LIMIT
+    
+    # light alert will be HIGH if light lux is out of normal range
+    light_alert = light < LIGHT_L_LIMIT or light > LIGHT_U_LIMIT
+    
+    # Return 1 as alert if any of the alert is HIGH
+    alert = temperature_alert + light_alert
+    return alert
+
+def save_to_buffer(data):
+    buffer = []
+    if LOCAL_BUFFER_FILE in os.listdir():
+        # Read exiting buffer data first
+        with open(LOCAL_BUFFER_FILE, "r") as f:
+            try:
+                buffer = json.load(f)
+            except:
+                buffer = []
+    
+    # Append new data to buffer
+    buffer.append(data)
+    
+    # Re-write buffer with updated data
+    with open(LOCAL_BUFFER_FILE, "w") as f:
+        json.dump(buffer, f)
+
+def upload_buffered_data_to_firebase(key):
+    if LOCAL_BUFFER_FILE not in os.listdir():
+        return
+    
+    # Read exiting buffer data
+    with open(LOCAL_BUFFER_FILE, "r") as f:
+        try:
+            buffer = json.load(f)
+        except:
+            buffer = []
+    
+    upload_success = []
+    for data in buffer:
+        if upload_data_to_firebase(data, key):
+            upload_success.append(data)
+
+    remaining = [e for e in buffer if e not in upload_success]
+    with open(LOCAL_BUFFER_FILE, "w") as f:
+        json.dump(remaining, f)
 
 #====================================================================
 # Main Method
@@ -152,6 +228,9 @@ def main():
     
     # Initialize the TEMT6000 light sensor
     light_sensor_adc = init_light_sensor()
+    
+    # Initialize alert LED
+    alert_led = init_alert_led()
     
     # Connect to Wi-Fi
     if not connect_wifi():
@@ -164,7 +243,8 @@ def main():
     # Get decrypted firebase key
     firebase_key = decrypt_firebase_key()
     
-    print("[SUCCESS] Initialization complete. EnviroSense is ready for use")
+    print("[SUCCESS] Initialization complete.")
+    print("*** EnviroSense is ready for use ***")
     
     # Main loop
     while True:
@@ -180,15 +260,25 @@ def main():
         # Report sensed parameters
         print("[INFO]    [", timestamp, "] Temperature:", temperature, "°C Light:", light_lux, "lux")
         
+        # Check sensor data and raise alert appropriatly
+        set_alert(alert_led, check_anomaly(temperature, light_lux))
+        
         # Convert raw data to JSON format
         json_data = convert_data_to_json(timestamp, temperature, light_lux)
         
-        # Send data to Firebase
-        upload_data_to_firebase(json_data, firebase_key)
+        # Send data if device is online
+        if wifi_connected():
+            # Send data to Firebase
+            upload_data_to_firebase(json_data, firebase_key)
+            
+            # Send locally aggregated data to firebase
+            upload_buffered_data_to_firebase(firebase_key) 
+        else:
+            save_to_buffer(json_data)
+        
 
         # Wait before checking next parameter
         time.sleep(PARAM_CHK_INTERVAL)
 
 if __name__ == "__main__":
     main()
-
