@@ -186,7 +186,7 @@ function drawChart(canvasId, label, labels, values, color) {
         x: { display: false },
         y: isTemp
           ? { beginAtZero: false, suggestedMin: 10, suggestedMax: 40 }
-          : { beginAtZero: true,  suggestedMin: 0,  suggestedMax: 12000 }
+          : { beginAtZero: true,  suggestedMin: 0,  suggestedMax: 1200 }
         // If you often have very small lux but want to show big thresholds too,
         // consider a log scale instead:
         // y: { type: 'logarithmic', min: 0.1, max: 100000 }
