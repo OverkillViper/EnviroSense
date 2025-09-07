@@ -4,7 +4,6 @@ const FIREBASE_URL = "https://envirosense-b9386-default-rtdb.asia-southeast1.fir
 const LAST_N = 12; // 🔹 Change this to control how many recent entries are shown
 const REFRESH_INTERVAL = 5000
 
-/////////////////////////////////////////////////////////////////////////
 // ===== Threshold configs =====
 const TEMPERATURE_THRESHOLDS = [
   { label: 'Higher than Usual', value: 32, color: '#ef4444' },
@@ -46,7 +45,6 @@ const thresholdLinesPlugin = {
 };
 Chart.register(thresholdLinesPlugin);
 
-/////////////////////////////////////////////////////////////////////////
 async function fetchData() {
     try {
         const res = await fetch(FIREBASE_URL);
@@ -173,7 +171,7 @@ function drawChart(canvasId, label, labels, values, color) {
       plugins: {
         legend: {
           display: true,
-          position: 'bottom',           // ⬅️ legend under the chart
+          position: 'bottom',           // legend under the chart
           labels: {
             // Optional: keep only threshold labels in legend
             // filter: (item) => ![label].includes(item.text)
