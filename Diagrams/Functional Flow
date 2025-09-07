@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    %% Cisco 7-Layer IoT Reference Model mapping
+    participant U as User\n(L7 Collaboration & Processes)
+    participant E as ESP32 Edge\n(L1 Physical Devices)\n(L2 Connectivity)\n(L3 Edge/Fog Computing)
+    participant N as Wi-Fi / Internet\n(L2 Connectivity)
+    participant F as Firebase RTDB\n(L4 Data Accumulation)\n(L5 Data Abstraction)
+    participant D as Web Dashboard\n(L6 Application)
+
+    U ->> E: Enter SSID, Password, AES key  [L7 → L3]
+    E ->> N: Connect STA (timeout 10s)      [L2]
+    E ->> E: NTP sync time                  [L2]
+    E ->> E: Decrypt Firebase token (AES-128-CBC)  [L3]
+
+    loop Every 5 s
+        E ->> E: Read DS18B20, TEMT6000              [L1]
+        E ->> E: Threshold check → NeoPixel alert    [L3 → L1]
+        alt Online
+            E ->> F: HTTPS PUT /sensor_data/{timestamp}.json?auth=token  [L2/L5]
+            E ->> F: Try re-upload buffered records                      [L3 → L4]
+        else Offline
+            E ->> E: Append record to buffer.json                        [L3]
+        end
+        F -->> D: fetch() latest N entries                               [L4 → L6]
+        D ->> D: KPIs + charts + tables update                           [L6]
+    end
