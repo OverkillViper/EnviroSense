@@ -1,40 +1,39 @@
 # =====================================================================
 # Import libraries
 # =====================================================================
-import network                      # Used to connect to Wi-Fi
-import urequests                    # Used to handle HTTP requests
-import ntptime                      # Used to get current time from NTP server
-import time                         # Used to utilize the on board timer
-                                    # module for delay and timestamps
-import machine                      # Used to control the pins of ESP32
-import sys                          # Used to take input from user
-import onewire                      # Communication protocol for 1-wire device
-import ds18x20                      # Used to read DS18B20 temperature sensor
-import cryptolib                    # Used for AES-128 decryption
-import neopixel                     # Used for indicating LED alerts
-import os                           # Used for file management for local buffering
-import json                         # Used for JSON file management
+import network                          # Used to connect to Wi-Fi
+import urequests                        # Used to handle HTTP requests
+import ntptime                          # Used to get current time from NTP server
+import time                             # Used to utilize the on board timer
+                                        # module for delay and timestamps
+import machine                          # Used to control the pins of ESP32
+import sys                              # Used to take input from user
+import onewire                          # Communication protocol for 1-wire device
+import ds18x20                          # Used to read DS18B20 temperature sensor
+import cryptolib                        # Used for AES-128 decryption
+import os                               # Used for file management for local buffering
+import json                             # Used for JSON file management
 
 #====================================================================
 # Constants definition
 #====================================================================
-TEMPERATURE_SENSOR_PIN  = 3         # DS18B20 connected at GPIO9
-LIGHT_SENSOR_PIN        = 8         # TEMT6000 connected at GPIO10
-ALERT_LED_PIN           = 48        # Builtin RGB LED Pin at GPIO48
-TIMEZONE_OFFSET         = 6 * 3600  # Timezone offset for BD. GMT+6
-WIFI_CONNECTION_TIMEOUT = 10        # Seconds to wait for Wi-Fi to connect
-ADC_MAX_VALUE           = 4096      # Maximum value possibler for 12-bit ADC
-ADC_REF_VOLTAGE         = 3.3       # Reference voltage for ADC
-PARAM_CHK_INTERVAL      = 5         # Interval between checking temperature
-                                    # and light in seconds.
-EPOCH_CONVERSION_FACTOR = 946684800 # Adjustment for 1970 -> 2000 EPOCH
+TEMPERATURE_SENSOR_PIN  = 39            # DS18B20 connected at GPIO9
+LIGHT_SENSOR_PIN        = 8             # TEMT6000 connected at GPIO10
+ALERT_LED_PIN           = 10            # Builtin RGB LED Pin at GPIO48
+TIMEZONE_OFFSET         = 6 * 3600      # Timezone offset for BD. GMT+6
+WIFI_CONNECTION_TIMEOUT = 10            # Seconds to wait for Wi-Fi to connect
+ADC_MAX_VALUE           = 4096          # Maximum value possibler for 12-bit ADC
+ADC_REF_VOLTAGE         = 3.3           # Reference voltage for ADC
+PARAM_CHK_INTERVAL      = 5             # Interval between checking temperature
+                                        # and light in seconds.
+EPOCH_CONVERSION_FACTOR = 946684800     # Adjustment for 1970 -> 2000 EPOCH
 ENCRYPTED_FIREBASE_KEY  = b's\xd0\x85\xd5\x95\xef\xe0\xee\xe25m`\x91\x89S3|\x02\xb8\x08\xda(\x0c\x04]2C\xbd\xcf\xef\xb3v\xac\x990\xd9\x8a-\x85\xf6\xc7\xa3\xd8ex\n\x05\x1b'
-                                    # Encrypted firebase key with AES-128 encryption
+                                        # Encrypted firebase key with AES-128 encryption
 AES_INIT_VECTOR         = b'TheEnviroSenseIV' # AES-128 Initialization Vector
-TEMPERATURE_L_LIMIT     = 28.00     # Lower limit for anomaly temperature. In °C
-TEMPERATURE_U_LIMIT     = 35.00     # Upper limit for anomaly temperature  In °C
-LIGHT_L_LIMIT           = 0.00      # Lower limit for anomaly light. In lux
-LIGHT_U_LIMIT           = 200.00    # Upper limit for anomaly light. In lux
+TEMPERATURE_L_LIMIT     = 28.00         # Lower limit for anomaly temperature. In °C
+TEMPERATURE_U_LIMIT     = 35.00         # Upper limit for anomaly temperature  In °C
+LIGHT_L_LIMIT           = 0.00          # Lower limit for anomaly light. In lux
+LIGHT_U_LIMIT           = 200.00        # Upper limit for anomaly light. In lux
 LOCAL_BUFFER_FILE       = "buffer.json" # Local storage file for data buffering
 
 #====================================================================
@@ -66,9 +65,8 @@ def init_light_sensor():
 
 def init_alert_led():
     alert_led    = machine.Pin(ALERT_LED_PIN, machine.Pin.OUT)
-    neopixel_obj = neopixel.NeoPixel(alert_led, 1)
     
-    return neopixel_obj
+    return alert_led
 
 def connect_wifi():
     SSID     = input("          Enter Wi-Fi SSID    : ")
@@ -165,8 +163,7 @@ def upload_data_to_firebase(data, key):
         print("[INFO]    Data saved locally and will try to re-upload later")
 
 def set_alert(led, alert_value):
-    led[0] = [255 * alert_value, 0, 0]
-    led.write()
+    led.value(alert_value)
 
 def check_anomaly(temperature, light):
     temperature_alert = 0
@@ -210,11 +207,13 @@ def upload_buffered_data_to_firebase(key):
         except:
             buffer = []
     
+    # Upload buffer data to Firebase
     upload_success = []
     for data in buffer:
         if upload_data_to_firebase(data, key):
             upload_success.append(data)
 
+    # Store remaining data back to buffer
     remaining = [e for e in buffer if e not in upload_success]
     with open(LOCAL_BUFFER_FILE, "w") as f:
         json.dump(remaining, f)
