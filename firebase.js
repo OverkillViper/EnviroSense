@@ -144,14 +144,6 @@ function updateTable(tableId, entries, key, unit) {
   const table = document.getElementById(tableId);
   if (!table) return;
 
-  // Header
-  table.innerHTML = `
-    <tr class="font-semibold bg-gray-100">
-      <th class="p-2">Timestamp</th>
-      <th class="p-2">${key}</th>
-    </tr>
-  `;
-
   // Rows (newest first, like your original UI)
   entries.forEach(e => {
     const formatted = formatTsShort(e.dt);
