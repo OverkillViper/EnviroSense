@@ -93,7 +93,7 @@ Chart.register(thresholdLinesPlugin);
 
 async function fetchData() {
   try {
-    const res = await fetch(FIREBASE_URL);
+    const res = await fetch(FIREBASE_URL+"?auth="+"lDTkT9Hs4tToopsuyrwdvVGmbaShwPRjYiOplrkQ");
     const data = await res.json();
     if (!data) return;
 
