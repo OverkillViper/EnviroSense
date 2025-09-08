@@ -133,6 +133,7 @@ async function fetchData() {
 
 function updateLatest(dateObj, values) {
   const formatted = formatTsLong(dateObj);
+  console.log(formatted);
   document.getElementById("latest_time").innerText        = formatted;
   document.getElementById("latest_temperature").innerText = values.temperature.toFixed(2) + " °C";
   document.getElementById("latest_light").innerText       = values.light_lux.toFixed(2) + " lux";
