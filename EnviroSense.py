@@ -30,10 +30,10 @@ EPOCH_CONVERSION_FACTOR = 946684800     # Adjustment for 1970 -> 2000 EPOCH
 ENCRYPTED_FIREBASE_KEY  = b's\xd0\x85\xd5\x95\xef\xe0\xee\xe25m`\x91\x89S3|\x02\xb8\x08\xda(\x0c\x04]2C\xbd\xcf\xef\xb3v\xac\x990\xd9\x8a-\x85\xf6\xc7\xa3\xd8ex\n\x05\x1b'
                                         # Encrypted firebase key with AES-128 encryption
 AES_INIT_VECTOR         = b'TheEnviroSenseIV' # AES-128 Initialization Vector
-TEMPERATURE_L_LIMIT     = 28.00         # Lower limit for anomaly temperature. In °C
-TEMPERATURE_U_LIMIT     = 35.00         # Upper limit for anomaly temperature  In °C
-LIGHT_L_LIMIT           = 0.00          # Lower limit for anomaly light. In lux
-LIGHT_U_LIMIT           = 200.00        # Upper limit for anomaly light. In lux
+TEMPERATURE_L_LIMIT     = 25.00         # Lower limit for anomaly temperature. In °C
+TEMPERATURE_U_LIMIT     = 32.00         # Upper limit for anomaly temperature  In °C
+LIGHT_L_LIMIT           = 10.00          # Lower limit for anomaly light. In lux
+LIGHT_U_LIMIT           = 300.00        # Upper limit for anomaly light. In lux
 LOCAL_BUFFER_FILE       = "buffer.json" # Local storage file for data buffering
 
 #====================================================================
