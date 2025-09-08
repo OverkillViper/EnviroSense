@@ -50,14 +50,14 @@ function parseTimestampFlexible(ts) {
 
 // Long format for the top KPIs (e.g., "10:42 AM, 7 September 2025")
 function formatTsLong(d) {
-  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
          ", " +
          d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 }
 
 // Short format for tables/axes (e.g., "10:42, 7 Sep")
 function formatTsShort(d) {
-  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) +
          ", " +
          d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
