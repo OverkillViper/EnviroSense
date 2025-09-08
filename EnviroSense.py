@@ -105,9 +105,9 @@ def sync_time():
         print("[ERROR]   NTP syncronization failed:", e)
 
 def get_timestamp():
-    current_time = time.localtime(time.time() + TIMEZONE_OFFSET)    # Apply timezone offset for GMT+6
+    current_time = int(time.time() + EPOCH_CONVERSION_FACTOR + TIMEZONE_OFFSET)    # Apply timezone offset for GMT+6 and EPOCH conversion factor
 
-    return int(time.mktime(current_time) + EPOCH_CONVERSION_FACTOR) # Return current time as integer
+    return current_time                                                            # Return current time
 
 def get_temperature(sensor, roms):
     sensor.convert_temp()                    # Instruct the DS18B20 sensor to start temperature conversion
