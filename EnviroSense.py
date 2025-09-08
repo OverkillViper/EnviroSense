@@ -105,7 +105,7 @@ def sync_time():
         print("[ERROR]   NTP syncronization failed:", e)
 
 def get_timestamp():
-    current_time = time.localtime(time.time())
+    current_time = time.localtime(time.time() + TIMEZONE_OFFSET)    # Apply timezone offset for GMT+6
 
     return int(time.mktime(current_time) + EPOCH_CONVERSION_FACTOR) # Return current time as integer
 
