@@ -18,6 +18,52 @@ const LIGHT_THRESHOLDS = [
   { label: 'No light',  value: 0,     color: '#6b7280' },
 ];
 
+////////////////////////
+// ---- Timestamp helpers: support "DD-MM-YYYY-HH-mm-ss" or epoch seconds ----
+function parseTimestampFlexible(ts) {
+  if (ts == null) return null;
+  const s = String(ts).trim();
+
+  // Case A: epoch seconds
+  if (/^\d{9,}$/.test(s)) {
+    const ms = parseInt(s, 10) * 1000;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Case B: "DD-MM-YYYY-HH-mm-ss"
+  //        1-2   1-2   4     1-2  1-2  1-2  (no leading zeros required)
+  const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})-(\d{1,2})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const day   = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10) - 1; // JS months 0-11
+    const year  = parseInt(m[3], 10);
+    const hour  = parseInt(m[4], 10);
+    const min   = parseInt(m[5], 10);
+    const sec   = parseInt(m[6], 10);
+    const d = new Date(year, month, day, hour, min, sec);
+    return isNaN(d.getTime()) ? null : d; // interpreted in browser's local TZ
+  }
+
+  return null;
+}
+
+// Long format for the top KPIs (e.g., "10:42 AM, 7 September 2025")
+function formatTsLong(d) {
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
+         ", " +
+         d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Short format for tables/axes (e.g., "10:42, 7 Sep")
+function formatTsShort(d) {
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
+         ", " +
+         d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+}
+
+////////////////////////
+
 // ===== Plugin: draw horizontal threshold lines (no labels on chart) =====
 const thresholdLinesPlugin = {
   id: 'thresholdLines',
@@ -45,79 +91,151 @@ const thresholdLinesPlugin = {
 };
 Chart.register(thresholdLinesPlugin);
 
+// async function fetchData() {
+//     try {
+//         const res = await fetch(FIREBASE_URL);
+//         const data = await res.json();
+//         if (!data) return;
+
+//         // Sort entries by timestamp (latest first)
+//         const sortedData = Object.entries(data).sort((a, b) => b[0].localeCompare(a[0]));
+//         const recentData = sortedData.slice(0, LAST_N); // 🔹 take last N records
+
+//         // Extract labels (timestamps) and values
+//         const labels = recentData.map(([ts]) => ts).reverse(); // oldest → latest for charts
+//         const tempValues = recentData.map(([_, v]) => v.temperature).reverse();
+//         const lightValues = recentData.map(([_, v]) => v.light_lux).reverse();
+
+//         // Update latest values in dashboard
+//         const [latestTs, latestValues] = recentData[0];
+//         updateLatest(latestTs, latestValues);
+
+//         // Update tables
+//         updateTable("temperature_table", recentData, "temperature", "°C");
+//         updateTable("light_table", recentData, "light_lux", "lux");
+
+//         // Update charts
+//         drawChart("temperature_chart", "Temperature (°C)", labels, tempValues, "rgba(255,99,132,1)");
+//         drawChart("light_chart", "Light (lux)", labels, lightValues, "rgba(54,162,235,1)");
+
+//     } catch (err) {
+//         console.error("Error fetching Firebase data:", err);
+//     }
+// }
+
 async function fetchData() {
-    try {
-        const res = await fetch(FIREBASE_URL);
-        const data = await res.json();
-        if (!data) return;
+  try {
+    const res = await fetch(FIREBASE_URL);
+    const data = await res.json();
+    if (!data) return;
 
-        // Sort entries by timestamp (latest first)
-        const sortedData = Object.entries(data).sort((a, b) => b[0].localeCompare(a[0]));
-        const recentData = sortedData.slice(0, LAST_N); // 🔹 take last N records
+    // Build [{ key, v, dt }] and sort by real Date (newest first).
+    const entries = Object.entries(data)
+      .map(([key, v]) => {
+        // Prefer parsing the Firebase key. If that fails, fall back to the value.timestamp field.
+        const dt = parseTimestampFlexible(key) || parseTimestampFlexible(v?.timestamp);
+        return { key, v, dt };
+      })
+      .filter(e => e.dt && !isNaN(e.dt.getTime()))
+      .sort((a, b) => b.dt - a.dt)         // newest → oldest
+      .slice(0, LAST_N);                   // keep latest N
 
-        // Extract labels (timestamps) and values
-        const labels = recentData.map(([ts]) => ts).reverse(); // oldest → latest for charts
-        const tempValues = recentData.map(([_, v]) => v.temperature).reverse();
-        const lightValues = recentData.map(([_, v]) => v.light_lux).reverse();
+    if (entries.length === 0) return;
 
-        // Update latest values in dashboard
-        const [latestTs, latestValues] = recentData[0];
-        updateLatest(latestTs, latestValues);
+    // Labels & series for charts (oldest → latest for a left-to-right line)
+    const labels      = entries.map(e => formatTsShort(e.dt)).reverse();
+    const tempValues  = entries.map(e => e.v.temperature).reverse();
+    const lightValues = entries.map(e => e.v.light_lux).reverse();
 
-        // Update tables
-        updateTable("temperature_table", recentData, "temperature", "°C");
-        updateTable("light_table", recentData, "light_lux", "lux");
+    // Latest tile (entries[0] is newest due to sort)
+    const latest = entries[0];
+    updateLatest(latest.dt, latest.v);
 
-        // Update charts
-        drawChart("temperature_chart", "Temperature (°C)", labels, tempValues, "rgba(255,99,132,1)");
-        drawChart("light_chart", "Light (lux)", labels, lightValues, "rgba(54,162,235,1)");
+    // Tables (show newest first, same as before)
+    updateTable("temperature_table", entries, "temperature", "°C");
+    updateTable("light_table",       entries, "light_lux",   "lux");
 
-    } catch (err) {
-        console.error("Error fetching Firebase data:", err);
-    }
+    // Charts
+    drawChart("temperature_chart", "Temperature (°C)", labels, tempValues, "rgba(255,99,132,1)");
+    drawChart("light_chart",       "Light (lux)",      labels, lightValues, "rgba(54,162,235,1)");
+  } catch (err) {
+    console.error("Error fetching Firebase data:", err);
+  }
 }
 
-function updateLatest(timestamp, values) {
-    const ts = new Date(parseInt(timestamp) * 1000); // assuming timestamp = seconds
-    const formatted = ts.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
-                      ", " + ts.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+// function updateLatest(timestamp, values) {
+//     const ts = new Date(parseInt(timestamp) * 1000); // assuming timestamp = seconds
+//     const formatted = ts.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
+//                       ", " + ts.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 
-    document.getElementById("latest_time").innerText = formatted;
-    document.getElementById("latest_temperature").innerText = values.temperature.toFixed(2) + " °C";
-    document.getElementById("latest_light").innerText = values.light_lux.toFixed(2) + " lux";
+//     document.getElementById("latest_time").innerText = formatted;
+//     document.getElementById("latest_temperature").innerText = values.temperature.toFixed(2) + " °C";
+//     document.getElementById("latest_light").innerText = values.light_lux.toFixed(2) + " lux";
+// }
+
+function updateLatest(dateObj, values) {
+  const formatted = formatTsLong(dateObj);
+  document.getElementById("latest_time").innerText        = formatted;
+  document.getElementById("latest_temperature").innerText = values.temperature.toFixed(2) + " °C";
+  document.getElementById("latest_light").innerText       = values.light_lux.toFixed(2) + " lux";
 }
 
-function updateTable(tableId, data, key, unit) {
-    const table = document.getElementById(tableId);
-    if (!table) return;
+// function updateTable(tableId, data, key, unit) {
+//     const table = document.getElementById(tableId);
+//     if (!table) return;
 
-    // Clear table content first
-    table.innerHTML = "";
+//     // Clear table content first
+//     table.innerHTML = "";
 
-    // Optional: Add header
-    const header = `
-        <tr class="font-semibold bg-gray-100">
-            <th class="p-2">Timestamp</th>
-            <th class="p-2">${key}</th>
-        </tr>
+//     // Optional: Add header
+//     const header = `
+//         <tr class="font-semibold bg-gray-100">
+//             <th class="p-2">Timestamp</th>
+//             <th class="p-2">${key}</th>
+//         </tr>
+//     `;
+//     table.innerHTML = header;
+
+//     // Add rows for last N records
+//     data.forEach(([ts, v]) => {
+//         const date = new Date(parseInt(ts) * 1000);
+//         const formatted = date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
+//                           ", " + date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+
+//         const row = `
+//             <tr>
+//                 <td class="p-2 border">${formatted}</td>
+//                 <td class="p-2 border text-center">${v[key].toFixed(2)} ${unit}</td>
+//             </tr>
+//         `;
+//         table.innerHTML += row;
+//     });
+// }
+
+function updateTable(tableId, entries, key, unit) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+
+  // Header
+  table.innerHTML = `
+    <tr class="font-semibold bg-gray-100">
+      <th class="p-2">Timestamp</th>
+      <th class="p-2">${key}</th>
+    </tr>
+  `;
+
+  // Rows (newest first, like your original UI)
+  entries.forEach(e => {
+    const formatted = formatTsShort(e.dt);
+    table.innerHTML += `
+      <tr>
+        <td class="p-2 border">${formatted}</td>
+        <td class="p-2 border text-center">${e.v[key].toFixed(2)} ${unit}</td>
+      </tr>
     `;
-    table.innerHTML = header;
-
-    // Add rows for last N records
-    data.forEach(([ts, v]) => {
-        const date = new Date(parseInt(ts) * 1000);
-        const formatted = date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) +
-                          ", " + date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
-
-        const row = `
-            <tr>
-                <td class="p-2 border">${formatted}</td>
-                <td class="p-2 border text-center">${v[key].toFixed(2)} ${unit}</td>
-            </tr>
-        `;
-        table.innerHTML += row;
-    });
+  });
 }
+
 
 
 let tempChart = null;
